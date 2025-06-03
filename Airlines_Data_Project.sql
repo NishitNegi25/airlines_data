@@ -21,9 +21,10 @@ WHERE actual_departure > scheduled_departure;
 -- List Flights Grouped by Aircraft to See Usage Frequency
 -- Question Template: Display following columns aircraft_code, total_flights, avg_flight_duration_minutes
 
-SELECT a.aircraft_code, COUNT(f.flight_id) AS flight_count, AVG(TIMESTAMPDIFF(minute, f.actual_departure, f.actual_arrival)) AS flight_duration_minutes
-FROM flights AS f JOIN aircrafts AS a
-ON f.aircraft_code = a.aircraft_code
+SELECT aircraft_code, 
+COUNT(*) AS total_flights, 
+ROUND(AVG(TIMESTAMPDIFF(minute, scheduled_departure, scheduled_arrival))) AS avg_flight_duration_minutes
+FROM flights
 GROUP BY aircraft_code;
 
 -- Question 3 (Marks: 3)
@@ -51,13 +52,12 @@ ORDER BY flight_id;
 -- Determine Occupancy per Aircraft
 -- Question Template: Display following columns flight_id, flight_no, aircraft_code, total_seats, occupied_seats, occupancy_rate_percentage
 
-WITH total_seats AS(SELECT aircraft_code, COUNT(*) AS total_seats FROM seats GROUP BY aircraft_code)
-SELECT f.flight_id, f.flight_no, f.aircraft_code, ts.total_seats, 
-	COUNT(bp.boarding_no) AS occupied_seats, 
-	COUNT(bp.boarding_no)/ts.total_seats*100 AS occupancy_rate_percentage
-FROM flights AS f JOIN  boarding_passes AS bp JOIN total_seats AS ts
-ON f.flight_id = bp.flight_id AND f.aircraft_code = ts.aircraft_code
-GROUP BY flight_id;
+SELECT f.flight_id, f.flight_no, f.aircraft_code,
+(SELECT COUNT(*) FROM seats AS s WHERE s.aircraft_code = f.aircraft_code) AS total_seats,
+COUNT(bp.ticket_no) AS occupied_seats,
+ROUND(COUNT(bp.ticket_no)/(SELECT COUNT(*) FROM seats AS s WHERE s.aircraft_code = f.aircraft_code)*100,2) AS occupancy_rate_percentage
+FROM flights AS f LEFT JOIN boarding_passes AS bp ON f.flight_id = bp.flight_id
+GROUP BY f.flight_id, f.flight_no, f.aircraft_code; 
 
 -- Question 6 (Marks: 3)
 -- Objective: Identify the three flights that generated the highest revenue based on ticket sales.
@@ -67,18 +67,18 @@ GROUP BY flight_id;
 SELECT f.flight_id, f.flight_no, SUM(tf.amount) AS total_revenue 
 FROM flights AS f JOIN ticket_flights AS tf
 ON f.flight_id = tf.flight_id
-GROUP BY flight_id
-ORDER BY total_revenue DESC LIMIT 5;
+GROUP BY flight_id, f.flight_no
+ORDER BY total_revenue DESC LIMIT 3;
 
 -- Question 7 (Marks: 3)
 -- Objective: Determine the average flight duration for each aircraft model, allowing you to see how flight performance might vary between different models.
 -- Average Flight Duration by Aircraft Model
 -- Question Template: Display following columns model, avg_duration_minutes
 
-SELECT a.aircraft_code, a.model, AVG(TIMESTAMPDIFF(minute, f.actual_departure, f.actual_arrival)) AS avg_duration_minutes
+SELECT a.model, AVG(TIMESTAMPDIFF(minute, f.scheduled_departure, f.scheduled_arrival)) AS avg_duration_minutes
 FROM aircrafts AS a JOIN flights AS f
 ON a.aircraft_code = f.aircraft_code
-GROUP BY a.aircraft_code,a.model;
+GROUP BY a.model;
 
 -- Question 8 (Marks: 3)
 -- Objective: Count how many flights depart from each airport to assess airport activity levels.
@@ -170,7 +170,7 @@ ORDER BY total_route_revenue DESC;
 -- Peak Booking Hours
 -- Question Template: Display following columns booking_hour, bookings_count
 
-SELECT TIME(book_date) AS booking_hour, COUNT(book_ref) AS bookings_count
+SELECT HOUR(book_date) AS booking_hour, COUNT(*) AS bookings_count
 FROM bookings
 GROUP BY booking_hour
 ORDER BY bookings_count DESC LIMIT 5;
